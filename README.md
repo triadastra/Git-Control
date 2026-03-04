@@ -58,4 +58,5 @@ cargo test
 
 - This MVP is local-first and does not require cloud APIs.
 - Remote auth-heavy actions (`pull/push/fetch`) are intentionally presented as guided commands in UI rather than opaque background operations.
+- Git Control never auto-initializes repositories: it only works with existing `.git` metadata and resolves parent repos when you select a subfolder.
 # Git-Control
