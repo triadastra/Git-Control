@@ -1,6 +1,12 @@
 # Git Control
 
-Git Control is a local Rust desktop app that makes daily Git operations task-driven and safer than raw command workflows.
+> **A task-driven Git desktop client written in Rust — with AI-assisted conflict resolution, multi-pane workflow views, and safe-by-default UX patterns.**
+
+Git Control is a local-first Rust desktop application that makes everyday Git operations task-driven and safer than raw command-line workflows. It wraps libgit2 in a clean egui/eframe GUI, provides guided flows for staging, committing, branching, syncing, and recovering, and adds an AI conflict-resolution studio backed by OpenAI or an offline heuristic engine.
+
+## Topics
+
+`git` `git-client` `git-gui` `rust` `egui` `eframe` `desktop-app` `libgit2` `ai` `conflict-resolution` `openai` `branch-management` `developer-tools` `local-first` `commit-workflow` `reflog` `history-viewer` `command-palette`
 
 ## What is implemented
 
@@ -59,4 +65,3 @@ cargo test
 - This MVP is local-first and does not require cloud APIs.
 - Remote auth-heavy actions (`pull/push/fetch`) are intentionally presented as guided commands in UI rather than opaque background operations.
 - Git Control never auto-initializes repositories: it only works with existing `.git` metadata and resolves parent repos when you select a subfolder.
-# Git-Control
