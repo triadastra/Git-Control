@@ -794,11 +794,10 @@ impl GitControlApp {
                     toolbar_divider(ui);
 
                     // Group 4: Misc
-                    if self.snapshot.as_ref().map(|s| s.summary.conflict_count > 0).unwrap_or(false) {
-                        if toolbar_button(ui, "⚡  Conflicts", false).on_hover_text("Open Conflict Studio").clicked() {
+                    if self.snapshot.as_ref().map(|s| s.summary.conflict_count > 0).unwrap_or(false)
+                        && toolbar_button(ui, "⚡  Conflicts", false).on_hover_text("Open Conflict Studio").clicked() {
                             self.active_tab = WorkTab::Conflicts;
                         }
-                    }
                     if toolbar_button(ui, "⌨  Actions", false).on_hover_text("Open command palette (⌘K)").clicked() {
                         self.command_palette_open = true;
                     }
@@ -911,7 +910,7 @@ impl GitControlApp {
                                             .size(13.0),
                                     );
                                     ui.label(
-                                        RichText::new(&format!("({})", repo.current_branch))
+                                        RichText::new(format!("({})", repo.current_branch))
                                             .color(if selected {
                                                 Color32::from_rgb(66, 114, 170)
                                             } else {
@@ -1431,22 +1430,20 @@ impl GitControlApp {
                                     .position(|c| c.path == change.path);
                             }
                         } else {
-                            if change.staged {
-                                if ui.small_button("－ Unstage").clicked() {
+                            if change.staged
+                                && ui.small_button("－ Unstage").clicked() {
                                     let rel_path = change.path.clone();
                                     self.run_repo_action("Unstaged file", |repo_path| {
                                         GitService::unstage_path(repo_path, &rel_path)
                                     });
                                 }
-                            }
-                            if change.unstaged {
-                                if ui.small_button("＋ Stage").clicked() {
+                            if change.unstaged
+                                && ui.small_button("＋ Stage").clicked() {
                                     let rel_path = change.path.clone();
                                     self.run_repo_action("Staged file", |repo_path| {
                                         GitService::stage_path(repo_path, &rel_path)
                                     });
                                 }
-                            }
                         }
                     });
                 });
@@ -1727,14 +1724,13 @@ impl GitControlApp {
                             }
 
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if !branch.is_head {
-                                    if ui.small_button("⑂  Checkout").clicked() {
+                                if !branch.is_head
+                                    && ui.small_button("⑂  Checkout").clicked() {
                                         let name = branch.name.clone();
                                         self.run_repo_action("Switched branch", |path| {
                                             GitService::checkout_branch(path, &name)
                                         });
                                     }
-                                }
                                 if let Some(upstream) = &branch.upstream {
                                     ui.label(
                                         RichText::new(format!("↑ {}", upstream))
