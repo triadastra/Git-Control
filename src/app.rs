@@ -705,7 +705,7 @@ impl GitControlApp {
                         }
                     } else {
                         ui.label(
-                            RichText::new("No repository selected")
+                            RichText::new("Select a repository to begin")
                                 .size(12.0)
                                 .color(Color32::from_rgb(160, 160, 165)),
                         );
@@ -964,7 +964,7 @@ impl GitControlApp {
                                         if repo.conflict_count > 0 {
                                             status_chip_flat(
                                                 ui,
-                                                &format!("⚠ {} conflict{}", repo.conflict_count, if repo.conflict_count == 1 { "" } else { "s" }),
+                                                &format_conflict_count(repo.conflict_count),
                                                 Color32::from_rgb(255, 235, 235),
                                                 Color32::from_rgb(180, 40, 40),
                                             );
@@ -1227,7 +1227,7 @@ impl GitControlApp {
             if snapshot.summary.conflict_count > 0 {
                 status_chip(
                     ui,
-                    &format!("⚠ {} conflict{}", snapshot.summary.conflict_count, if snapshot.summary.conflict_count == 1 { "" } else { "s" }),
+                    &format_conflict_count(snapshot.summary.conflict_count),
                     Color32::from_rgb(234, 67, 53),
                 );
             }
@@ -1281,7 +1281,7 @@ impl GitControlApp {
             ui.label(RichText::new("Changed Files").strong());
             ui.add(
                 egui::TextEdit::singleline(&mut self.changes_filter)
-                    .hint_text("🔍 Filter by path…")
+                    .hint_text("Filter by path…")
                     .desired_width(200.0),
             );
         });
@@ -1444,7 +1444,8 @@ impl GitControlApp {
             }
 
             // Show a message when filter hides everything
-            if staged.is_empty() && unstaged.is_empty() && untracked.is_empty() && !filter.is_empty() {
+            let no_visible_changes = staged.is_empty() && unstaged.is_empty() && untracked.is_empty();
+            if no_visible_changes && !filter.is_empty() {
                 ui.add_space(8.0);
                 ui.label(
                     RichText::new(format!("No files match '{}'", filter))
@@ -1463,7 +1464,7 @@ impl GitControlApp {
 
         ui.label(RichText::new("◎ History Graph").strong().size(16.0));
         ui.label(
-            RichText::new("Visual timeline of commits, branches, and merges.")
+            RichText::new("Visual timeline of commits, branches, merges, and author actions.")
                 .size(12.0)
                 .color(Color32::from_rgb(120, 120, 125)),
         );
@@ -2749,6 +2750,10 @@ fn sync_state_card(ui: &mut Ui, label: &str, value: &str, bg: Color32, fg: Color
                 );
             });
         });
+}
+
+fn format_conflict_count(count: usize) -> String {
+    format!("⚠ {} conflict{}", count, if count == 1 { "" } else { "s" })
 }
 
 fn yes_no(flag: bool) -> &'static str {
