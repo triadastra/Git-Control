@@ -740,6 +740,13 @@ impl GitControlApp {
                                         .strong(),
                                 );
                             });
+                    } else {
+                        ui.add_space(8.0);
+                        ui.label(
+                            RichText::new("Select a repository to begin")
+                                .size(12.0)
+                                .color(Color32::from_rgb(160, 160, 165)),
+                        );
                     }
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -877,9 +884,49 @@ impl GitControlApp {
                 ui.add_space(8.0);
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
+                    if self.repositories.is_empty() {
+                        ui.add_space(12.0);
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(248, 248, 251))
+                            .rounding(egui::Rounding::same(8.0))
+                            .inner_margin(egui::Margin::same(14.0))
+                            .stroke(egui::Stroke::new(
+                                1.0,
+                                Color32::from_rgb(220, 220, 228),
+                            ))
+                            .show(ui, |ui| {
+                                ui.label(
+                                    RichText::new("No repositories found")
+                                        .strong()
+                                        .size(12.0)
+                                        .color(Color32::from_rgb(90, 90, 95)),
+                                );
+                                ui.add_space(4.0);
+                                ui.label(
+                                    RichText::new(
+                                        "Enter a folder path above and click Scan, \
+                                         or add a specific repo path manually.",
+                                    )
+                                    .size(11.0)
+                                    .color(Color32::from_rgb(140, 140, 148)),
+                                );
+                            });
+                        return;
+                    }
+
                     let mut next_selection = self.selected_repo;
                     for (idx, repo) in self.repositories.iter().enumerate() {
                         let selected = self.selected_repo == Some(idx);
+
+                        // Determine status accent colour for the left border
+                        let accent = if repo.conflict_count > 0 {
+                            Color32::from_rgb(234, 67, 53)
+                        } else if repo.staged_count > 0 || repo.unstaged_count > 0 {
+                            Color32::from_rgb(251, 140, 0)
+                        } else {
+                            Color32::from_rgb(52, 168, 83)
+                        };
+
                         let response = egui::Frame::none()
                             .fill(if selected {
                                 Color32::from_rgb(225, 240, 255)
@@ -898,6 +945,14 @@ impl GitControlApp {
                             .inner_margin(egui::Margin::symmetric(8.0, 6.0))
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
+                                    // Status-coloured indicator dot
+                                    let (dot_rect, _) = ui.allocate_exact_size(
+                                        egui::vec2(6.0, 6.0),
+                                        egui::Sense::hover(),
+                                    );
+                                    ui.painter()
+                                        .circle_filled(dot_rect.center(), 3.0, accent);
+
                                     let text_color = if selected {
                                         Color32::from_rgb(18, 86, 163)
                                     } else {
@@ -910,7 +965,7 @@ impl GitControlApp {
                                             .size(13.0),
                                     );
                                     ui.label(
-                                        RichText::new(format!("({})", repo.current_branch))
+                                        RichText::new(format!("⑂  {}", repo.current_branch))
                                             .color(if selected {
                                                 Color32::from_rgb(66, 114, 170)
                                             } else {
@@ -1349,9 +1404,7 @@ impl GitControlApp {
         egui::ScrollArea::vertical().show(ui, |ui| {
             // Staged section
             if !staged_files.is_empty() {
-                ui.add_space(6.0);
-                changes_section_header(ui, &format!("Staged  ({})", staged_files.len()), Color32::from_rgb(40, 150, 70));
-                ui.add_space(4.0);
+                section_header(ui, "Staged Changes", staged_files.len(), Color32::from_rgb(40, 150, 70));
                 for (idx, change) in &staged_files {
                     self.render_file_row(ui, *idx, change, &snapshot.conflicts);
                 }
@@ -1359,9 +1412,7 @@ impl GitControlApp {
 
             // Unstaged / modified section
             if !unstaged_files.is_empty() {
-                ui.add_space(8.0);
-                changes_section_header(ui, &format!("Unstaged  ({})", unstaged_files.len()), Color32::from_rgb(190, 100, 10));
-                ui.add_space(4.0);
+                section_header(ui, "Modified (Not Staged)", unstaged_files.len(), Color32::from_rgb(190, 100, 10));
                 for (idx, change) in &unstaged_files {
                     self.render_file_row(ui, *idx, change, &snapshot.conflicts);
                 }
@@ -1369,12 +1420,20 @@ impl GitControlApp {
 
             // Untracked section
             if !untracked_files.is_empty() {
-                ui.add_space(8.0);
-                changes_section_header(ui, &format!("Untracked  ({})", untracked_files.len()), Color32::from_rgb(100, 100, 105));
-                ui.add_space(4.0);
+                section_header(ui, "Untracked Files", untracked_files.len(), Color32::from_rgb(100, 100, 105));
                 for (idx, change) in &untracked_files {
                     self.render_file_row(ui, *idx, change, &snapshot.conflicts);
                 }
+            }
+
+            // Show a message when filter hides everything
+            if staged_files.is_empty() && unstaged_files.is_empty() && untracked_files.is_empty() && !filter.is_empty() {
+                ui.add_space(8.0);
+                ui.label(
+                    RichText::new(format!("No files match '{}'", filter))
+                        .color(Color32::from_rgb(140, 140, 145))
+                        .size(12.0),
+                );
             }
         });
     }
@@ -1757,66 +1816,58 @@ impl GitControlApp {
             return;
         };
 
-        ui.label(RichText::new("⟳  Sync").strong().size(16.0));
+        ui.heading("⇅ Sync");
         ui.label(
-            RichText::new("Fetch, pull, and push the current branch.")
+            RichText::new("Fetch, pull, and push against the upstream remote.")
                 .size(12.0)
-                .color(Color32::from_rgb(130, 130, 135)),
+                .color(Color32::from_rgb(120, 120, 125)),
         );
-        ui.add_space(10.0);
+        ui.add_space(8.0);
 
-        // Status summary card
-        egui::Frame::none()
-            .fill(Color32::from_rgb(248, 250, 255))
-            .rounding(egui::Rounding::same(10.0))
-            .inner_margin(egui::Margin::symmetric(16.0, 12.0))
-            .stroke(Stroke::new(1.0, Color32::from_rgb(210, 220, 245)))
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("⑂").size(16.0).color(Color32::from_rgb(60, 100, 200)));
-                    ui.label(
-                        RichText::new(&snapshot.summary.current_branch)
-                            .size(14.0)
-                            .strong()
-                            .color(Color32::from_rgb(30, 60, 150)),
-                    );
-                });
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    let ahead_color = if snapshot.summary.ahead > 0 {
-                        Color32::from_rgb(0, 122, 255)
-                    } else {
-                        Color32::from_rgb(160, 160, 165)
-                    };
-                    let behind_color = if snapshot.summary.behind > 0 {
-                        Color32::from_rgb(220, 100, 10)
-                    } else {
-                        Color32::from_rgb(160, 160, 165)
-                    };
-                    status_chip(
-                        ui,
-                        &format!("↑ {} ahead", snapshot.summary.ahead),
-                        ahead_color,
-                    );
-                    status_chip(
-                        ui,
-                        &format!("↓ {} behind", snapshot.summary.behind),
-                        behind_color,
-                    );
-                    if snapshot.summary.ahead == 0 && snapshot.summary.behind == 0 {
-                        status_chip(ui, "✓  In sync", Color32::from_rgb(40, 150, 70));
-                    }
-                });
-            });
+        // Sync state cards
+        ui.horizontal(|ui| {
+            sync_state_card(
+                ui,
+                "⑂  Branch",
+                &snapshot.summary.current_branch,
+                Color32::from_rgb(240, 240, 248),
+                Color32::from_rgb(80, 80, 160),
+            );
+            if snapshot.summary.ahead > 0 {
+                sync_state_card(
+                    ui,
+                    "↑  Ahead",
+                    &snapshot.summary.ahead.to_string(),
+                    Color32::from_rgb(235, 247, 255),
+                    Color32::from_rgb(30, 100, 180),
+                );
+            }
+            if snapshot.summary.behind > 0 {
+                sync_state_card(
+                    ui,
+                    "↓  Behind",
+                    &snapshot.summary.behind.to_string(),
+                    Color32::from_rgb(255, 248, 235),
+                    Color32::from_rgb(150, 90, 0),
+                );
+            }
+            if snapshot.summary.ahead == 0 && snapshot.summary.behind == 0 {
+                sync_state_card(
+                    ui,
+                    "✓  In Sync",
+                    "up to date",
+                    Color32::from_rgb(235, 252, 240),
+                    Color32::from_rgb(40, 140, 70),
+                );
+            }
+        });
 
         ui.add_space(10.0);
-
-        // Action buttons
         ui.horizontal_wrapped(|ui| {
-            if toolbar_button(ui, "⬇  Fetch", false).on_hover_text("Fetch all remotes").clicked() {
+            if toolbar_button(ui, "↺ Fetch", false).clicked() {
                 self.run_repo_action_with_output("Fetch completed", GitService::fetch);
             }
-            if toolbar_button(ui, "⟵  Pull --rebase", false).on_hover_text("Pull with rebase from upstream").clicked() {
+            if toolbar_button(ui, "↓ Pull --rebase", false).clicked() {
                 self.run_repo_action_with_output(
                     "Pull with rebase completed",
                     GitService::pull_rebase,
@@ -2055,25 +2106,25 @@ impl GitControlApp {
             return;
         };
 
-        ui.label(RichText::new("↩  Recovery Center").strong().size(16.0));
+        ui.heading("↩ Recovery");
         ui.label(
-            RichText::new("Reflog timeline — restore your repository to any previous state.")
+            RichText::new("Roll back to any prior state via the reflog — select an entry, arm the reset, then confirm.")
                 .size(12.0)
-                .color(Color32::from_rgb(130, 130, 135)),
+                .color(Color32::from_rgb(120, 120, 125)),
         );
-        ui.add_space(8.0);
 
         if snapshot.recovery.is_empty() {
-            ui.add_space(8.0);
+            ui.add_space(12.0);
             egui::Frame::none()
-                .fill(Color32::from_rgb(248, 248, 250))
+                .fill(Color32::from_rgb(248, 248, 251))
                 .rounding(egui::Rounding::same(8.0))
                 .inner_margin(egui::Margin::symmetric(14.0, 10.0))
+                .stroke(egui::Stroke::new(1.0, Color32::from_rgb(220, 220, 228)))
                 .show(ui, |ui| {
                     ui.label(
                         RichText::new("No reflog entries available yet.")
                             .size(12.0)
-                            .color(Color32::from_rgb(140, 140, 145)),
+                            .color(Color32::from_rgb(140, 140, 148)),
                     );
                 });
             return;
@@ -2081,74 +2132,74 @@ impl GitControlApp {
 
         let entries = snapshot.recovery.clone();
         egui::ScrollArea::vertical()
-            .max_height(340.0)
+            .max_height(300.0)
             .show(ui, |ui| {
                 for (idx, entry) in entries.iter().enumerate() {
                     let selected = self.selected_recovery == Some(idx);
-                    let is_armed = self
-                        .pending_reset_to
-                        .as_ref()
-                        .map(|oid| oid == &entry.to_id)
-                        .unwrap_or(false);
 
-                    let row_bg = if is_armed {
-                        Color32::from_rgb(255, 235, 235)
-                    } else if selected {
-                        Color32::from_rgb(230, 243, 255)
-                    } else {
-                        Color32::from_rgb(252, 252, 254)
-                    };
-
-                    let row_resp = egui::Frame::none()
-                        .fill(row_bg)
+                    let response = egui::Frame::none()
+                        .fill(if selected {
+                            Color32::from_rgb(230, 242, 255)
+                        } else {
+                            Color32::TRANSPARENT
+                        })
+                        .stroke(Stroke::new(
+                            0.5,
+                            if selected {
+                                Color32::from_rgb(64, 156, 255)
+                            } else {
+                                Color32::from_rgb(230, 230, 232)
+                            },
+                        ))
                         .rounding(egui::Rounding::same(6.0))
-                        .stroke(Stroke::new(0.5, if is_armed { Color32::from_rgb(240, 180, 180) } else if selected { Color32::from_rgb(160, 200, 250) } else { Color32::from_rgb(225, 225, 230) }))
-                        .inner_margin(egui::Margin::symmetric(10.0, 7.0))
+                        .inner_margin(egui::Margin::symmetric(10.0, 6.0))
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 ui.label(
                                     RichText::new(&entry.to_id_short)
                                         .monospace()
                                         .size(11.0)
-                                        .color(Color32::from_rgb(90, 90, 95)),
+                                        .color(Color32::from_rgb(100, 100, 105)),
                                 );
                                 ui.label(
                                     RichText::new(&entry.message)
                                         .size(12.0)
-                                        .color(if selected { Color32::from_rgb(10, 60, 130) } else { Color32::from_rgb(30, 30, 35) }),
+                                        .color(if selected {
+                                            Color32::from_rgb(0, 60, 120)
+                                        } else {
+                                            Color32::from_rgb(40, 40, 45)
+                                        }),
                                 );
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ui.label(
-                                        RichText::new(&entry.timestamp)
-                                            .size(10.0)
-                                            .color(Color32::from_rgb(140, 140, 145)),
-                                    );
-                                });
                             });
                             ui.label(
-                                RichText::new(format!("{} → {}", entry.from_id_short, entry.to_id_short))
-                                    .size(10.0)
-                                    .color(Color32::from_rgb(150, 150, 155)),
+                                RichText::new(format!(
+                                    "{}  {} → {}",
+                                    entry.timestamp, entry.from_id_short, entry.to_id_short
+                                ))
+                                .size(10.0)
+                                .color(Color32::from_rgb(140, 140, 145)),
                             );
                         })
                         .response;
 
-                    if ui.interact(row_resp.rect, ui.next_auto_id().with(idx), egui::Sense::click()).clicked() {
+                    if response.clicked() {
                         self.selected_recovery = Some(idx);
                     }
-                    ui.add_space(3.0);
+                    ui.add_space(2.0);
                 }
             });
 
+        ui.add_space(4.0);
         ui.separator();
-        ui.add_space(6.0);
+        ui.add_space(4.0);
 
         if let Some(selected_idx) = self.selected_recovery {
             if let Some(entry) = entries.get(selected_idx) {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Selected:").size(12.0).color(Color32::from_rgb(110, 110, 115)));
-                    ui.label(RichText::new(&entry.message).size(12.0).strong());
-                });
+                ui.label(
+                    RichText::new(format!("Selected: {}", entry.message))
+                        .size(12.0)
+                        .strong(),
+                );
                 ui.add_space(6.0);
 
                 if self
@@ -2160,48 +2211,38 @@ impl GitControlApp {
                     egui::Frame::none()
                         .fill(Color32::from_rgb(255, 235, 235))
                         .rounding(egui::Rounding::same(8.0))
-                        .inner_margin(egui::Margin::symmetric(12.0, 8.0))
-                        .stroke(Stroke::new(1.0, Color32::from_rgb(240, 180, 180)))
+                        .inner_margin(egui::Margin::same(10.0))
                         .show(ui, |ui| {
                             ui.label(
-                                RichText::new("⚠  Reset is armed — this will move HEAD to the selected commit.")
-                                    .size(12.0)
-                                    .color(Color32::from_rgb(170, 30, 30)),
+                                RichText::new("⚠ Reset armed — this will rewrite history!")
+                                    .strong()
+                                    .color(Color32::from_rgb(180, 40, 40))
+                                    .size(12.0),
                             );
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                if toolbar_button(ui, "↩ Confirm Reset", true).clicked() {
+                                    let target = entry.to_id.clone();
+                                    self.run_repo_action(
+                                        "Reset repository to selected reflog entry",
+                                        |path| GitService::mixed_reset_to(path, &target),
+                                    );
+                                    self.pending_reset_to = None;
+                                }
+                                if ui.button("✗ Cancel").clicked() {
+                                    self.pending_reset_to = None;
+                                    self.set_status("Canceled recovery reset");
+                                }
+                            });
                         });
-                    ui.add_space(8.0);
-                    ui.horizontal(|ui| {
-                        let confirm_btn = egui::Button::new(
-                            RichText::new("↩  Confirm Reset").color(Color32::WHITE).strong(),
-                        )
-                        .fill(Color32::from_rgb(200, 40, 40));
-                        if ui.add(confirm_btn).clicked() {
-                            let target = entry.to_id.clone();
-                            self.run_repo_action(
-                                "Reset repository to selected reflog entry",
-                                |path| GitService::mixed_reset_to(path, &target),
-                            );
-                            self.pending_reset_to = None;
-                        }
-                        if ui.button("Cancel").clicked() {
-                            self.pending_reset_to = None;
-                            self.set_status("Canceled recovery reset");
-                        }
-                    });
-                } else {
-                    let arm_btn = egui::Button::new(
-                        RichText::new("⚠  Arm Reset").color(Color32::from_rgb(160, 40, 40)),
-                    )
-                    .stroke(Stroke::new(1.0, Color32::from_rgb(200, 100, 100)));
-                    if ui.add(arm_btn).clicked() {
-                        self.pending_reset_to = Some(entry.to_id.clone());
-                        self.set_status("Reset armed — click Confirm Reset to execute");
-                    }
+                } else if toolbar_button(ui, "⚡ Arm Reset", false).clicked() {
+                    self.pending_reset_to = Some(entry.to_id.clone());
+                    self.set_status("Reset armed. Click confirm to execute");
                 }
             }
         } else {
             ui.label(
-                RichText::new("Select a reflog entry above to arm a recovery reset.")
+                RichText::new("Select an entry above to arm a recovery reset.")
                     .size(12.0)
                     .color(Color32::from_rgb(140, 140, 145)),
             );
@@ -2398,14 +2439,6 @@ fn toolbar_divider(ui: &mut Ui) {
     ui.add_space(4.0);
 }
 
-fn changes_section_header(ui: &mut Ui, title: &str, accent: Color32) {
-    ui.horizontal(|ui| {
-        let (rect, _) = ui.allocate_exact_size(egui::vec2(3.0, 14.0), egui::Sense::hover());
-        ui.painter().rect_filled(rect, egui::Rounding::same(1.5), accent);
-        ui.add_space(4.0);
-        ui.label(RichText::new(title).strong().size(12.0).color(accent));
-    });
-}
 
 fn status_chip(ui: &mut Ui, label: &str, color: Color32) {
     egui::Frame::none()
@@ -2764,6 +2797,62 @@ fn conflict_detail_ui(
                 );
             });
     }
+}
+
+fn section_header(ui: &mut Ui, title: &str, count: usize, accent: Color32) {
+    ui.add_space(6.0);
+    egui::Frame::none()
+        .fill(accent.gamma_multiply(0.12))
+        .rounding(egui::Rounding::same(6.0))
+        .inner_margin(egui::Margin::symmetric(10.0, 5.0))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(title)
+                        .strong()
+                        .size(11.0)
+                        .color(accent.gamma_multiply(0.75)),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    egui::Frame::none()
+                        .fill(accent.gamma_multiply(0.22))
+                        .rounding(egui::Rounding::same(10.0))
+                        .inner_margin(egui::Margin::symmetric(7.0, 2.0))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new(count.to_string())
+                                    .strong()
+                                    .size(10.0)
+                                    .color(accent.gamma_multiply(0.75)),
+                            );
+                        });
+                });
+            });
+        });
+    ui.add_space(2.0);
+}
+
+fn sync_state_card(ui: &mut Ui, label: &str, value: &str, bg: Color32, fg: Color32) {
+    egui::Frame::none()
+        .fill(bg)
+        .rounding(egui::Rounding::same(10.0))
+        .inner_margin(egui::Margin::symmetric(14.0, 10.0))
+        .stroke(egui::Stroke::new(1.0, fg.gamma_multiply(0.35)))
+        .show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new(label)
+                        .size(10.0)
+                        .color(fg.gamma_multiply(0.8)),
+                );
+                ui.label(
+                    RichText::new(value)
+                        .strong()
+                        .size(15.0)
+                        .color(fg),
+                );
+            });
+        });
 }
 
 fn yes_no(flag: bool) -> &'static str {
