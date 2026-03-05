@@ -39,12 +39,12 @@ impl WorkTab {
 
     fn title(self) -> &'static str {
         match self {
-            WorkTab::Changes => "Changes",
-            WorkTab::History => "History Graph",
-            WorkTab::Branches => "Branch Lab",
-            WorkTab::Sync => "Sync",
-            WorkTab::Conflicts => "Conflict Studio",
-            WorkTab::Recovery => "Recovery Center",
+            WorkTab::Changes => "✦ Changes",
+            WorkTab::History => "◎ History",
+            WorkTab::Branches => "⑂ Branches",
+            WorkTab::Sync => "⇅ Sync",
+            WorkTab::Conflicts => "⚠ Conflicts",
+            WorkTab::Recovery => "↩ Recovery",
         }
     }
 }
@@ -89,12 +89,12 @@ impl PaletteAction {
             PaletteAction::PullRebase => "Pull --rebase",
             PaletteAction::Push => "Push Branch",
             PaletteAction::OpenTab(tab) => match tab {
-                WorkTab::Changes => "Open Changes",
-                WorkTab::History => "Open History Graph",
-                WorkTab::Branches => "Open Branch Lab",
-                WorkTab::Sync => "Open Sync",
-                WorkTab::Conflicts => "Open Conflict Studio",
-                WorkTab::Recovery => "Open Recovery Center",
+                WorkTab::Changes => "Open ✦ Changes",
+                WorkTab::History => "Open ◎ History",
+                WorkTab::Branches => "Open ⑂ Branches",
+                WorkTab::Sync => "Open ⇅ Sync",
+                WorkTab::Conflicts => "Open ⚠ Conflicts",
+                WorkTab::Recovery => "Open ↩ Recovery",
             },
         }
     }
@@ -663,47 +663,89 @@ impl GitControlApp {
                     traffic_light(ui, Color32::from_rgb(40, 201, 64));
                     ui.add_space(8.0);
                     ui.label(RichText::new("Git Control").size(16.0).strong());
-                    ui.label(
-                        RichText::new("Local Git Workbench")
-                            .size(12.0)
-                            .color(Color32::from_rgb(128, 128, 132)),
-                    );
+
+                    // Show active repo + branch when a repo is selected
+                    if let Some(snapshot) = self.snapshot.as_ref() {
+                        ui.add_space(4.0);
+                        ui.label(
+                            RichText::new("—")
+                                .size(13.0)
+                                .color(Color32::from_rgb(190, 190, 195)),
+                        );
+                        ui.add_space(4.0);
+                        ui.label(
+                            RichText::new(&snapshot.summary.name)
+                                .size(13.0)
+                                .strong()
+                                .color(Color32::from_rgb(40, 40, 45)),
+                        );
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(233, 239, 246))
+                            .rounding(egui::Rounding::same(5.0))
+                            .inner_margin(egui::Margin::symmetric(7.0, 3.0))
+                            .show(ui, |ui| {
+                                ui.label(
+                                    RichText::new(format!(
+                                        "⑂ {}",
+                                        snapshot.summary.current_branch
+                                    ))
+                                    .size(11.0)
+                                    .color(Color32::from_rgb(47, 87, 135)),
+                                );
+                            });
+                        if snapshot.summary.ahead > 0 || snapshot.summary.behind > 0 {
+                            ui.label(
+                                RichText::new(format!(
+                                    "↑{} ↓{}",
+                                    snapshot.summary.ahead, snapshot.summary.behind
+                                ))
+                                .size(11.0)
+                                .color(Color32::from_rgb(130, 100, 40)),
+                            );
+                        }
+                    } else {
+                        ui.label(
+                            RichText::new("Select a repository to begin")
+                                .size(12.0)
+                                .color(Color32::from_rgb(160, 160, 165)),
+                        );
+                    }
                 });
-                ui.add_space(8.0);
+                ui.add_space(6.0);
                 ui.horizontal_wrapped(|ui| {
-                    if toolbar_button(ui, "Refresh", false).clicked() {
+                    if toolbar_button(ui, "↺ Refresh", false).clicked() {
                         self.refresh_repositories();
                     }
 
-                    if toolbar_button(ui, "Reload", false).clicked() {
+                    if toolbar_button(ui, "⟳ Reload", false).clicked() {
                         self.refresh_selected_repo_snapshot();
                         self.set_status("Reloaded selected repository");
                     }
 
-                    if toolbar_button(ui, "Stage All", false).clicked() {
+                    if toolbar_button(ui, "+ Stage All", false).clicked() {
                         self.run_repo_action("Staged all changes", GitService::stage_all);
                     }
 
-                    if toolbar_button(ui, "Unstage All", false).clicked() {
+                    if toolbar_button(ui, "− Unstage All", false).clicked() {
                         self.run_repo_action("Unstaged all changes", GitService::unstage_all);
                     }
 
-                    if toolbar_button(ui, "Commit", true).clicked() {
+                    if toolbar_button(ui, "✓ Commit", true).clicked() {
                         self.commit();
                     }
 
-                    if toolbar_button(ui, "Conflicts", false).clicked() {
+                    if toolbar_button(ui, "⚠ Conflicts", false).clicked() {
                         self.active_tab = WorkTab::Conflicts;
                     }
 
-                    if toolbar_button(ui, "Actions", false).clicked() {
+                    if toolbar_button(ui, "⌘ Actions", false).clicked() {
                         self.command_palette_open = true;
                     }
 
                     ui.add_space(8.0);
                     ui.label(
-                        RichText::new("Cmd/Ctrl+K  Cmd/Ctrl+R  Cmd/Ctrl+Enter")
-                            .color(Color32::from_rgb(150, 150, 150))
+                        RichText::new("⌘K  ⌘R  ⌘↵")
+                            .color(Color32::from_rgb(170, 170, 175))
                             .size(11.0),
                     );
                 });
@@ -782,9 +824,49 @@ impl GitControlApp {
                 ui.add_space(8.0);
 
                 egui::ScrollArea::vertical().show(ui, |ui| {
+                    if self.repositories.is_empty() {
+                        ui.add_space(12.0);
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(248, 248, 251))
+                            .rounding(egui::Rounding::same(8.0))
+                            .inner_margin(egui::Margin::same(14.0))
+                            .stroke(egui::Stroke::new(
+                                1.0,
+                                Color32::from_rgb(220, 220, 228),
+                            ))
+                            .show(ui, |ui| {
+                                ui.label(
+                                    RichText::new("No repositories found")
+                                        .strong()
+                                        .size(12.0)
+                                        .color(Color32::from_rgb(90, 90, 95)),
+                                );
+                                ui.add_space(4.0);
+                                ui.label(
+                                    RichText::new(
+                                        "Enter a folder path above and click Scan, \
+                                         or add a specific repo path manually.",
+                                    )
+                                    .size(11.0)
+                                    .color(Color32::from_rgb(140, 140, 148)),
+                                );
+                            });
+                        return;
+                    }
+
                     let mut next_selection = self.selected_repo;
                     for (idx, repo) in self.repositories.iter().enumerate() {
                         let selected = self.selected_repo == Some(idx);
+
+                        // Determine status accent colour for the left border
+                        let accent = if repo.conflict_count > 0 {
+                            Color32::from_rgb(234, 67, 53)
+                        } else if repo.staged_count > 0 || repo.unstaged_count > 0 {
+                            Color32::from_rgb(251, 140, 0)
+                        } else {
+                            Color32::from_rgb(52, 168, 83)
+                        };
+
                         let response = egui::Frame::none()
                             .fill(if selected {
                                 Color32::from_rgb(225, 240, 255)
@@ -803,6 +885,14 @@ impl GitControlApp {
                             .inner_margin(egui::Margin::symmetric(8.0, 6.0))
                             .show(ui, |ui| {
                                 ui.horizontal(|ui| {
+                                    // Status-coloured indicator dot
+                                    let (dot_rect, _) = ui.allocate_exact_size(
+                                        egui::vec2(6.0, 6.0),
+                                        egui::Sense::hover(),
+                                    );
+                                    ui.painter()
+                                        .circle_filled(dot_rect.center(), 3.0, accent);
+
                                     let text_color = if selected {
                                         Color32::from_rgb(18, 86, 163)
                                     } else {
@@ -815,7 +905,7 @@ impl GitControlApp {
                                             .size(13.0),
                                     );
                                     ui.label(
-                                        RichText::new(&format!("({})", repo.current_branch))
+                                        RichText::new(format!("⑂ {}", repo.current_branch))
                                             .color(if selected {
                                                 Color32::from_rgb(66, 114, 170)
                                             } else {
@@ -825,42 +915,86 @@ impl GitControlApp {
                                     );
                                 });
 
-                                ui.horizontal_wrapped(|ui| {
-                                    let chip_color = if selected {
-                                        Color32::from_rgb(205, 227, 248)
-                                    } else {
-                                        Color32::from_rgb(220, 220, 220)
-                                    };
-                                    let text_color = if selected {
-                                        Color32::from_rgb(47, 87, 135)
-                                    } else {
-                                        Color32::from_rgb(80, 80, 80)
-                                    };
+                                ui.add_space(4.0);
+
+                                // Show only non-zero status counts for readability
+                                let has_any = repo.staged_count > 0
+                                    || repo.unstaged_count > 0
+                                    || repo.conflict_count > 0
+                                    || repo.ahead > 0
+                                    || repo.behind > 0;
+
+                                if has_any {
+                                    ui.horizontal_wrapped(|ui| {
+                                        let chip_bg = if selected {
+                                            Color32::from_rgb(205, 227, 248)
+                                        } else {
+                                            Color32::from_rgb(220, 220, 220)
+                                        };
+                                        let chip_fg = if selected {
+                                            Color32::from_rgb(47, 87, 135)
+                                        } else {
+                                            Color32::from_rgb(80, 80, 80)
+                                        };
+
+                                        if repo.staged_count > 0 {
+                                            status_chip_flat(
+                                                ui,
+                                                &format!("{} staged", repo.staged_count),
+                                                Color32::from_rgb(52, 168, 83).gamma_multiply(0.18),
+                                                Color32::from_rgb(30, 110, 55),
+                                            );
+                                        }
+                                        if repo.unstaged_count > 0 {
+                                            status_chip_flat(
+                                                ui,
+                                                &format!("{} modified", repo.unstaged_count),
+                                                Color32::from_rgb(251, 140, 0).gamma_multiply(0.18),
+                                                Color32::from_rgb(150, 90, 0),
+                                            );
+                                        }
+                                        if repo.untracked_count > 0 {
+                                            status_chip_flat(
+                                                ui,
+                                                &format!("{} untracked", repo.untracked_count),
+                                                chip_bg,
+                                                chip_fg,
+                                            );
+                                        }
+                                        if repo.conflict_count > 0 {
+                                            status_chip_flat(
+                                                ui,
+                                                &format_conflict_count(repo.conflict_count),
+                                                Color32::from_rgb(255, 235, 235),
+                                                Color32::from_rgb(180, 40, 40),
+                                            );
+                                        }
+                                        if repo.ahead > 0 {
+                                            status_chip_flat(
+                                                ui,
+                                                &format!("↑ {} ahead", repo.ahead),
+                                                chip_bg,
+                                                chip_fg,
+                                            );
+                                        }
+                                        if repo.behind > 0 {
+                                            status_chip_flat(
+                                                ui,
+                                                &format!("↓ {} behind", repo.behind),
+                                                Color32::from_rgb(255, 248, 235),
+                                                Color32::from_rgb(150, 90, 0),
+                                            );
+                                        }
+                                    });
+                                } else {
+                                    // Clean repo
                                     status_chip_flat(
                                         ui,
-                                        &format!("S:{}", repo.staged_count),
-                                        chip_color,
-                                        text_color,
+                                        "✓ clean",
+                                        Color32::from_rgb(52, 168, 83).gamma_multiply(0.15),
+                                        Color32::from_rgb(30, 110, 55),
                                     );
-                                    status_chip_flat(
-                                        ui,
-                                        &format!("U:{}", repo.unstaged_count),
-                                        chip_color,
-                                        text_color,
-                                    );
-                                    status_chip_flat(
-                                        ui,
-                                        &format!("C:{}", repo.conflict_count),
-                                        chip_color,
-                                        text_color,
-                                    );
-                                    status_chip_flat(
-                                        ui,
-                                        &format!("↑{}↓{}", repo.ahead, repo.behind),
-                                        chip_color,
-                                        text_color,
-                                    );
-                                });
+                                }
                             })
                             .response;
 
@@ -1071,47 +1205,49 @@ impl GitControlApp {
             return;
         };
 
-        ui.heading("Guided Changes Workflow");
+        ui.heading("✦ Changes");
         ui.label(&snapshot.summary.next_step);
 
         ui.horizontal(|ui| {
             status_chip(
                 ui,
-                &format!("Staged {}", snapshot.summary.staged_count),
+                &format!("↑ {} staged", snapshot.summary.staged_count),
                 Color32::from_rgb(52, 168, 83),
             );
             status_chip(
                 ui,
-                &format!("Unstaged {}", snapshot.summary.unstaged_count),
+                &format!("✎ {} modified", snapshot.summary.unstaged_count),
                 Color32::from_rgb(251, 140, 0),
             );
             status_chip(
                 ui,
-                &format!("Untracked {}", snapshot.summary.untracked_count),
+                &format!("? {} untracked", snapshot.summary.untracked_count),
                 Color32::from_rgb(117, 117, 117),
             );
-            status_chip(
-                ui,
-                &format!("Conflicts {}", snapshot.summary.conflict_count),
-                Color32::from_rgb(234, 67, 53),
-            );
+            if snapshot.summary.conflict_count > 0 {
+                status_chip(
+                    ui,
+                    &format_conflict_count(snapshot.summary.conflict_count),
+                    Color32::from_rgb(234, 67, 53),
+                );
+            }
         });
 
-        ui.add_space(8.0);
+        ui.add_space(6.0);
         ui.horizontal_wrapped(|ui| {
-            if snapshot.summary.conflict_count > 0 && ui.button("Open Conflict Studio").clicked() {
+            if snapshot.summary.conflict_count > 0 && ui.button("⚠ Resolve Conflicts").clicked() {
                 self.active_tab = WorkTab::Conflicts;
             }
-            if snapshot.summary.behind > 0 && ui.button("Open Sync").clicked() {
+            if snapshot.summary.behind > 0 && ui.button("⇅ Open Sync").clicked() {
                 self.active_tab = WorkTab::Sync;
             }
-            if snapshot.summary.staged_count > 0 && ui.button("Commit Now").clicked() {
+            if snapshot.summary.staged_count > 0 && ui.button("✓ Commit Now").clicked() {
                 self.commit();
             }
-            if ui.button("Stage All").clicked() {
+            if ui.button("+ Stage All").clicked() {
                 self.run_repo_action("Staged all changes", GitService::stage_all);
             }
-            if ui.button("Unstage All").clicked() {
+            if ui.button("− Unstage All").clicked() {
                 self.run_repo_action("Unstaged all changes", GitService::unstage_all);
             }
         });
@@ -1124,31 +1260,54 @@ impl GitControlApp {
                 .hint_text("feat(ui): improve conflict resolution flow"),
         );
         ui.horizontal(|ui| {
-            if ui.button("Template: feat").clicked() {
+            if ui.button("feat:").clicked() {
                 self.commit_message = "feat: ".to_owned();
             }
-            if ui.button("Template: fix").clicked() {
+            if ui.button("fix:").clicked() {
                 self.commit_message = "fix: ".to_owned();
             }
-            if ui.button("Template: chore").clicked() {
+            if ui.button("chore:").clicked() {
                 self.commit_message = "chore: ".to_owned();
             }
-            if ui.button("Create Commit").clicked() {
+            if toolbar_button(ui, "✓ Create Commit", true).clicked() {
                 self.commit();
             }
         });
 
+        ui.add_space(4.0);
         ui.separator();
+
         ui.horizontal(|ui| {
             ui.label(RichText::new("Changed Files").strong());
             ui.add(
                 egui::TextEdit::singleline(&mut self.changes_filter)
-                    .hint_text("Filter by file path"),
+                    .hint_text("Filter by path…")
+                    .desired_width(200.0),
             );
         });
 
         if snapshot.changes.is_empty() {
-            ui.label("Working tree is clean.");
+            ui.add_space(12.0);
+            egui::Frame::none()
+                .fill(Color32::from_rgb(235, 252, 240))
+                .rounding(egui::Rounding::same(8.0))
+                .inner_margin(egui::Margin::symmetric(14.0, 10.0))
+                .stroke(egui::Stroke::new(1.0, Color32::from_rgb(200, 240, 210)))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new("✓")
+                                .size(16.0)
+                                .color(Color32::from_rgb(40, 140, 70)),
+                        );
+                        ui.label(
+                            RichText::new("Working tree is clean — nothing to commit.")
+                                .strong()
+                                .size(12.0)
+                                .color(Color32::from_rgb(40, 140, 70)),
+                        );
+                    });
+                });
             return;
         }
 
@@ -1161,50 +1320,138 @@ impl GitControlApp {
             .map(|(i, c)| (i, c.clone()))
             .collect();
 
+        // Partition into three groups
+        let staged: Vec<(usize, FileChange)> = visible_changes
+            .iter()
+            .filter(|(_, c)| c.staged)
+            .cloned()
+            .collect();
+        let unstaged: Vec<(usize, FileChange)> = visible_changes
+            .iter()
+            .filter(|(_, c)| c.unstaged)
+            .cloned()
+            .collect();
+        let untracked: Vec<(usize, FileChange)> = visible_changes
+            .iter()
+            .filter(|(_, c)| !c.staged && !c.unstaged)
+            .cloned()
+            .collect();
+
         egui::ScrollArea::vertical().show(ui, |ui| {
-            for (idx, change) in &visible_changes {
-                ui.horizontal(|ui| {
-                    let selected = self.selected_change == Some(*idx);
-                    if ui
-                        .selectable_label(selected, format!("{} ({})", change.path, change.kind))
-                        .clicked()
-                    {
-                        self.selected_change = Some(*idx);
-                    }
+            // ── Staged section ────────────────────────────────────────────────
+            if !staged.is_empty() {
+                section_header(
+                    ui,
+                    "Staged Changes",
+                    staged.len(),
+                    Color32::from_rgb(52, 168, 83),
+                );
+                for (idx, change) in &staged {
+                    ui.horizontal(|ui| {
+                        let selected = self.selected_change == Some(*idx);
+                        if ui
+                            .selectable_label(selected, format!("{} ({})", change.path, change.kind))
+                            .clicked()
+                        {
+                            self.selected_change = Some(*idx);
+                        }
 
-                    if change.unstaged && ui.button("Stage").clicked() {
-                        let rel_path = change.path.clone();
-                        self.run_repo_action("Staged file", |repo_path| {
-                            GitService::stage_path(repo_path, &rel_path)
-                        });
-                    }
+                        if change.staged && ui.small_button("− Unstage").clicked() {
+                            let rel_path = change.path.clone();
+                            self.run_repo_action("Unstaged file", |repo_path| {
+                                GitService::unstage_path(repo_path, &rel_path)
+                            });
+                        }
 
-                    if change.staged && ui.button("Unstage").clicked() {
-                        let rel_path = change.path.clone();
-                        self.run_repo_action("Unstaged file", |repo_path| {
-                            GitService::unstage_path(repo_path, &rel_path)
-                        });
-                    }
-
-                    if change.kind == "conflicted" && ui.button("Resolve").clicked() {
-                        self.active_tab = WorkTab::Conflicts;
-                        self.selected_conflict = snapshot
-                            .conflicts
-                            .iter()
-                            .position(|conflict| conflict.path == change.path);
-                    }
-                });
-
-                ui.horizontal(|ui| {
-                    if change.staged {
-                        status_chip(ui, "staged", Color32::from_rgb(52, 168, 83));
-                    }
-                    if change.unstaged {
-                        status_chip(ui, "unstaged", Color32::from_rgb(251, 140, 0));
-                    }
-                });
-
+                        if change.kind == "conflicted" && ui.small_button("⚠ Resolve").clicked() {
+                            self.active_tab = WorkTab::Conflicts;
+                            self.selected_conflict = snapshot
+                                .conflicts
+                                .iter()
+                                .position(|conflict| conflict.path == change.path);
+                        }
+                    });
+                    ui.add_space(2.0);
+                }
                 ui.add_space(4.0);
+            }
+
+            // ── Modified / Not Staged section ─────────────────────────────────
+            if !unstaged.is_empty() {
+                section_header(
+                    ui,
+                    "Modified (Not Staged)",
+                    unstaged.len(),
+                    Color32::from_rgb(251, 140, 0),
+                );
+                for (idx, change) in &unstaged {
+                    ui.horizontal(|ui| {
+                        let selected = self.selected_change == Some(*idx);
+                        if ui
+                            .selectable_label(selected, format!("{} ({})", change.path, change.kind))
+                            .clicked()
+                        {
+                            self.selected_change = Some(*idx);
+                        }
+
+                        if change.unstaged && ui.small_button("+ Stage").clicked() {
+                            let rel_path = change.path.clone();
+                            self.run_repo_action("Staged file", |repo_path| {
+                                GitService::stage_path(repo_path, &rel_path)
+                            });
+                        }
+
+                        if change.kind == "conflicted" && ui.small_button("⚠ Resolve").clicked() {
+                            self.active_tab = WorkTab::Conflicts;
+                            self.selected_conflict = snapshot
+                                .conflicts
+                                .iter()
+                                .position(|conflict| conflict.path == change.path);
+                        }
+                    });
+                    ui.add_space(2.0);
+                }
+                ui.add_space(4.0);
+            }
+
+            // ── Untracked section ─────────────────────────────────────────────
+            if !untracked.is_empty() {
+                section_header(
+                    ui,
+                    "Untracked Files",
+                    untracked.len(),
+                    Color32::from_rgb(117, 117, 117),
+                );
+                for (idx, change) in &untracked {
+                    ui.horizontal(|ui| {
+                        let selected = self.selected_change == Some(*idx);
+                        if ui
+                            .selectable_label(selected, format!("{} ({})", change.path, change.kind))
+                            .clicked()
+                        {
+                            self.selected_change = Some(*idx);
+                        }
+
+                        if ui.small_button("+ Stage").clicked() {
+                            let rel_path = change.path.clone();
+                            self.run_repo_action("Staged file", |repo_path| {
+                                GitService::stage_path(repo_path, &rel_path)
+                            });
+                        }
+                    });
+                    ui.add_space(2.0);
+                }
+            }
+
+            // Show a message when filter hides everything
+            let no_visible_changes = staged.is_empty() && unstaged.is_empty() && untracked.is_empty();
+            if no_visible_changes && !filter.is_empty() {
+                ui.add_space(8.0);
+                ui.label(
+                    RichText::new(format!("No files match '{}'", filter))
+                        .color(Color32::from_rgb(140, 140, 145))
+                        .size(12.0),
+                );
             }
         });
     }
@@ -1215,9 +1462,9 @@ impl GitControlApp {
             return;
         };
 
-        ui.label(RichText::new("History Graph").strong().size(16.0));
+        ui.label(RichText::new("◎ History Graph").strong().size(16.0));
         ui.label(
-            RichText::new("Flowchart view of branches, merges, and author actions.")
+            RichText::new("Visual timeline of commits, branches, merges, and author actions.")
                 .size(12.0)
                 .color(Color32::from_rgb(120, 120, 125)),
         );
@@ -1391,20 +1638,28 @@ impl GitControlApp {
             return;
         };
 
-        ui.heading("Branch Lab");
-        ui.label("Create/switch branches with immediate feedback.");
+        ui.heading("⑂ Branches");
+        ui.label(
+            RichText::new("Create, switch, or inspect local branches.")
+                .size(12.0)
+                .color(Color32::from_rgb(120, 120, 125)),
+        );
+        ui.add_space(6.0);
 
         ui.horizontal(|ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut self.branch_name_input)
-                    .hint_text("feature/conflict-assistant"),
+                    .hint_text("New branch name, e.g. feature/my-feature")
+                    .desired_width(280.0),
             );
-            if ui.button("Create + Checkout").clicked() {
+            if toolbar_button(ui, "+ Create & Checkout", true).clicked() {
                 self.create_branch();
             }
         });
 
+        ui.add_space(4.0);
         ui.separator();
+        ui.add_space(4.0);
 
         if snapshot.branches.is_empty() {
             ui.label("No local branches found.");
@@ -1413,28 +1668,100 @@ impl GitControlApp {
 
         egui::ScrollArea::vertical().show(ui, |ui| {
             for (idx, branch) in snapshot.branches.iter().enumerate() {
-                ui.horizontal(|ui| {
-                    let selected = self.selected_branch == Some(idx);
-                    let mut title = branch.name.clone();
-                    if branch.is_head {
-                        title.push_str("  (current)");
-                    }
-                    if ui.selectable_label(selected, title).clicked() {
-                        self.selected_branch = Some(idx);
-                    }
+                let selected = self.selected_branch == Some(idx);
 
-                    if !branch.is_head && ui.button("Checkout").clicked() {
-                        let name = branch.name.clone();
-                        self.run_repo_action("Switched branch", |path| {
-                            GitService::checkout_branch(path, &name)
+                let response = egui::Frame::none()
+                    .fill(if selected {
+                        Color32::from_rgb(230, 242, 255)
+                    } else if branch.is_head {
+                        Color32::from_rgb(240, 252, 244)
+                    } else {
+                        Color32::TRANSPARENT
+                    })
+                    .stroke(Stroke::new(
+                        0.5,
+                        if selected {
+                            Color32::from_rgb(64, 156, 255)
+                        } else if branch.is_head {
+                            Color32::from_rgb(160, 220, 175)
+                        } else {
+                            Color32::from_rgb(230, 230, 232)
+                        },
+                    ))
+                    .rounding(egui::Rounding::same(6.0))
+                    .inner_margin(egui::Margin::symmetric(10.0, 7.0))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            // Coloured dot: green for HEAD, blue for selected, grey otherwise
+                            let (dot_rect, _) = ui.allocate_exact_size(
+                                egui::vec2(8.0, 8.0),
+                                egui::Sense::hover(),
+                            );
+                            let dot_color = if branch.is_head {
+                                Color32::from_rgb(52, 168, 83)
+                            } else if selected {
+                                Color32::from_rgb(0, 122, 255)
+                            } else {
+                                Color32::from_rgb(180, 180, 185)
+                            };
+                            ui.painter()
+                                .circle_filled(dot_rect.center(), 4.0, dot_color);
+
+                            ui.label(
+                                RichText::new(&branch.name)
+                                    .strong()
+                                    .size(13.0)
+                                    .color(if branch.is_head {
+                                        Color32::from_rgb(30, 110, 55)
+                                    } else if selected {
+                                        Color32::from_rgb(18, 86, 163)
+                                    } else {
+                                        Color32::from_rgb(29, 29, 31)
+                                    }),
+                            );
+
+                            if branch.is_head {
+                                egui::Frame::none()
+                                    .fill(Color32::from_rgb(52, 168, 83).gamma_multiply(0.18))
+                                    .rounding(egui::Rounding::same(4.0))
+                                    .inner_margin(egui::Margin::symmetric(6.0, 2.0))
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            RichText::new("current")
+                                                .size(10.0)
+                                                .color(Color32::from_rgb(30, 110, 55))
+                                                .strong(),
+                                        );
+                                    });
+                            }
+
+                            if let Some(upstream) = &branch.upstream {
+                                ui.label(
+                                    RichText::new(format!("→ {upstream}"))
+                                        .size(10.0)
+                                        .color(Color32::from_rgb(140, 140, 145)),
+                                );
+                            }
+
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if !branch.is_head && ui.small_button("Checkout").clicked() {
+                                        let name = branch.name.clone();
+                                        self.run_repo_action("Switched branch", |path| {
+                                            GitService::checkout_branch(path, &name)
+                                        });
+                                    }
+                                },
+                            );
                         });
-                    }
-                });
+                    })
+                    .response;
 
-                if let Some(upstream) = &branch.upstream {
-                    ui.small(format!("Upstream: {upstream}"));
+                if response.clicked() {
+                    self.selected_branch = Some(idx);
                 }
-                ui.add_space(6.0);
+                ui.add_space(3.0);
             }
         });
     }
@@ -1445,73 +1772,117 @@ impl GitControlApp {
             return;
         };
 
-        ui.heading("Sync");
-        ui.label("Quick sync guidance for current branch.");
+        ui.heading("⇅ Sync");
+        ui.label(
+            RichText::new("Fetch, pull, and push against the upstream remote.")
+                .size(12.0)
+                .color(Color32::from_rgb(120, 120, 125)),
+        );
         ui.add_space(8.0);
 
+        // Sync state cards
         ui.horizontal(|ui| {
-            status_chip(
+            sync_state_card(
                 ui,
-                &format!("↑ Ahead {}", snapshot.summary.ahead),
-                Color32::from_rgb(66, 133, 244),
+                "⑂  Branch",
+                &snapshot.summary.current_branch,
+                Color32::from_rgb(240, 240, 248),
+                Color32::from_rgb(80, 80, 160),
             );
-            status_chip(
-                ui,
-                &format!("↓ Behind {}", snapshot.summary.behind),
-                Color32::from_rgb(251, 140, 0),
-            );
-            status_chip(
-                ui,
-                &format!("⑂ {}", snapshot.summary.current_branch),
-                Color32::from_rgb(100, 100, 100),
-            );
+            if snapshot.summary.ahead > 0 {
+                sync_state_card(
+                    ui,
+                    "↑  Ahead",
+                    &snapshot.summary.ahead.to_string(),
+                    Color32::from_rgb(235, 247, 255),
+                    Color32::from_rgb(30, 100, 180),
+                );
+            }
+            if snapshot.summary.behind > 0 {
+                sync_state_card(
+                    ui,
+                    "↓  Behind",
+                    &snapshot.summary.behind.to_string(),
+                    Color32::from_rgb(255, 248, 235),
+                    Color32::from_rgb(150, 90, 0),
+                );
+            }
+            if snapshot.summary.ahead == 0 && snapshot.summary.behind == 0 {
+                sync_state_card(
+                    ui,
+                    "✓  In Sync",
+                    "up to date",
+                    Color32::from_rgb(235, 252, 240),
+                    Color32::from_rgb(40, 140, 70),
+                );
+            }
         });
 
-        ui.add_space(8.0);
+        ui.add_space(10.0);
         ui.horizontal_wrapped(|ui| {
-            if ui.button("Fetch").clicked() {
+            if toolbar_button(ui, "↺ Fetch", false).clicked() {
                 self.run_repo_action_with_output("Fetch completed", GitService::fetch);
             }
-            if ui.button("Pull --rebase").clicked() {
+            if toolbar_button(ui, "↓ Pull --rebase", false).clicked() {
                 self.run_repo_action_with_output(
                     "Pull with rebase completed",
                     GitService::pull_rebase,
                 );
             }
-            if ui.button("Push").clicked() {
+            if toolbar_button(ui, "↑ Push", snapshot.summary.ahead > 0).clicked() {
                 self.run_repo_action_with_output("Push completed", GitService::push);
             }
         });
 
         ui.add_space(8.0);
         if snapshot.summary.behind > 0 {
-            ui.label("Recommended: pull with rebase before additional commits.");
-            if ui.button("Copy `git pull --rebase` command").clicked() {
-                ui.output_mut(|output| {
-                    output.copied_text = "git pull --rebase".to_owned();
+            egui::Frame::none()
+                .fill(Color32::from_rgb(255, 248, 235))
+                .rounding(egui::Rounding::same(8.0))
+                .inner_margin(egui::Margin::symmetric(12.0, 8.0))
+                .stroke(egui::Stroke::new(1.0, Color32::from_rgb(255, 220, 150)))
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new("↓ Tip: pull with rebase before adding more commits.")
+                            .size(12.0)
+                            .color(Color32::from_rgb(150, 90, 0)),
+                    );
+                    if ui.small_button("Copy  git pull --rebase").clicked() {
+                        ui.output_mut(|output| {
+                            output.copied_text = "git pull --rebase".to_owned();
+                        });
+                        self.set_status("Copied pull command");
+                    }
                 });
-                self.set_status("Copied pull command");
-            }
         }
 
         if snapshot.summary.ahead > 0 {
-            ui.label("Recommended: push branch to publish local commits.");
-            if ui.button("Copy `git push` command").clicked() {
-                ui.output_mut(|output| {
-                    output.copied_text = "git push".to_owned();
+            ui.add_space(4.0);
+            egui::Frame::none()
+                .fill(Color32::from_rgb(235, 247, 255))
+                .rounding(egui::Rounding::same(8.0))
+                .inner_margin(egui::Margin::symmetric(12.0, 8.0))
+                .stroke(egui::Stroke::new(1.0, Color32::from_rgb(180, 220, 255)))
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new("↑ Tip: push your local commits to publish them.")
+                            .size(12.0)
+                            .color(Color32::from_rgb(30, 100, 180)),
+                    );
+                    if ui.small_button("Copy  git push").clicked() {
+                        ui.output_mut(|output| {
+                            output.copied_text = "git push".to_owned();
+                        });
+                        self.set_status("Copied push command");
+                    }
                 });
-                self.set_status("Copied push command");
-            }
         }
 
-        if snapshot.summary.ahead == 0 && snapshot.summary.behind == 0 {
-            ui.label("Branch is in sync with upstream.");
-        }
-
+        ui.add_space(8.0);
         ui.separator();
         ui.label(RichText::new("Last Sync Output").strong());
         if self.sync_output.is_empty() {
-            ui.small("No sync command has been run yet.");
+            ui.small("No sync command has been run yet in this session.");
         } else {
             let mut output = self.sync_output.clone();
             ui.add(
@@ -1528,8 +1899,12 @@ impl GitControlApp {
             return;
         };
 
-        ui.heading("Conflict Studio");
-        ui.label("AI-assisted resolution with local and remote agents.");
+        ui.heading("⚠ Conflicts");
+        ui.label(
+            RichText::new("AI-assisted resolution — choose a strategy, generate a suggestion, review, then apply.")
+                .size(12.0)
+                .color(Color32::from_rgb(120, 120, 125)),
+        );
 
         ui.add_space(8.0);
         ui.horizontal(|ui| {
@@ -1671,68 +2046,146 @@ impl GitControlApp {
             return;
         };
 
-        ui.heading("Recovery Center");
-        ui.label("Human-readable reflog entries for rapid rollback.");
+        ui.heading("↩ Recovery");
+        ui.label(
+            RichText::new("Roll back to any prior state via the reflog — select an entry, arm the reset, then confirm.")
+                .size(12.0)
+                .color(Color32::from_rgb(120, 120, 125)),
+        );
 
         if snapshot.recovery.is_empty() {
-            ui.add_space(8.0);
-            ui.label("No reflog entries available yet.");
+            ui.add_space(12.0);
+            egui::Frame::none()
+                .fill(Color32::from_rgb(248, 248, 251))
+                .rounding(egui::Rounding::same(8.0))
+                .inner_margin(egui::Margin::symmetric(14.0, 10.0))
+                .stroke(egui::Stroke::new(1.0, Color32::from_rgb(220, 220, 228)))
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new("No reflog entries available yet.")
+                            .size(12.0)
+                            .color(Color32::from_rgb(140, 140, 148)),
+                    );
+                });
             return;
         }
 
         let entries = snapshot.recovery.clone();
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            for (idx, entry) in entries.iter().enumerate() {
-                let selected = self.selected_recovery == Some(idx);
-                let label = format!("{}  {}", entry.to_id_short, entry.message);
-                if ui.selectable_label(selected, label).clicked() {
-                    self.selected_recovery = Some(idx);
-                }
-                ui.small(format!(
-                    "{}  {} -> {}",
-                    entry.timestamp, entry.from_id_short, entry.to_id_short
-                ));
-                ui.add_space(6.0);
-            }
-        });
+        egui::ScrollArea::vertical()
+            .max_height(300.0)
+            .show(ui, |ui| {
+                for (idx, entry) in entries.iter().enumerate() {
+                    let selected = self.selected_recovery == Some(idx);
 
+                    let response = egui::Frame::none()
+                        .fill(if selected {
+                            Color32::from_rgb(230, 242, 255)
+                        } else {
+                            Color32::TRANSPARENT
+                        })
+                        .stroke(Stroke::new(
+                            0.5,
+                            if selected {
+                                Color32::from_rgb(64, 156, 255)
+                            } else {
+                                Color32::from_rgb(230, 230, 232)
+                            },
+                        ))
+                        .rounding(egui::Rounding::same(6.0))
+                        .inner_margin(egui::Margin::symmetric(10.0, 6.0))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new(&entry.to_id_short)
+                                        .monospace()
+                                        .size(11.0)
+                                        .color(Color32::from_rgb(100, 100, 105)),
+                                );
+                                ui.label(
+                                    RichText::new(&entry.message)
+                                        .size(12.0)
+                                        .color(if selected {
+                                            Color32::from_rgb(0, 60, 120)
+                                        } else {
+                                            Color32::from_rgb(40, 40, 45)
+                                        }),
+                                );
+                            });
+                            ui.label(
+                                RichText::new(format!(
+                                    "{}  {} → {}",
+                                    entry.timestamp, entry.from_id_short, entry.to_id_short
+                                ))
+                                .size(10.0)
+                                .color(Color32::from_rgb(140, 140, 145)),
+                            );
+                        })
+                        .response;
+
+                    if response.clicked() {
+                        self.selected_recovery = Some(idx);
+                    }
+                    ui.add_space(2.0);
+                }
+            });
+
+        ui.add_space(4.0);
         ui.separator();
+        ui.add_space(4.0);
 
         if let Some(selected_idx) = self.selected_recovery {
             if let Some(entry) = entries.get(selected_idx) {
-                ui.label(format!("Selected: {}", entry.message));
+                ui.label(
+                    RichText::new(format!("Selected: {}", entry.message))
+                        .size(12.0)
+                        .strong(),
+                );
+                ui.add_space(6.0);
+
                 if self
                     .pending_reset_to
                     .as_ref()
                     .map(|oid| oid == &entry.to_id)
                     .unwrap_or(false)
                 {
-                    if ui
-                        .button(
-                            RichText::new("Confirm Reset")
-                                .color(Color32::WHITE)
-                                .strong(),
-                        )
-                        .clicked()
-                    {
-                        let target = entry.to_id.clone();
-                        self.run_repo_action("Reset repository to selected reflog entry", |path| {
-                            GitService::mixed_reset_to(path, &target)
+                    egui::Frame::none()
+                        .fill(Color32::from_rgb(255, 235, 235))
+                        .rounding(egui::Rounding::same(8.0))
+                        .inner_margin(egui::Margin::same(10.0))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new("⚠ Reset armed — this will rewrite history!")
+                                    .strong()
+                                    .color(Color32::from_rgb(180, 40, 40))
+                                    .size(12.0),
+                            );
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                if toolbar_button(ui, "↩ Confirm Reset", true).clicked() {
+                                    let target = entry.to_id.clone();
+                                    self.run_repo_action(
+                                        "Reset repository to selected reflog entry",
+                                        |path| GitService::mixed_reset_to(path, &target),
+                                    );
+                                    self.pending_reset_to = None;
+                                }
+                                if ui.button("✗ Cancel").clicked() {
+                                    self.pending_reset_to = None;
+                                    self.set_status("Canceled recovery reset");
+                                }
+                            });
                         });
-                        self.pending_reset_to = None;
-                    }
-
-                    if ui.button("Cancel").clicked() {
-                        self.pending_reset_to = None;
-                        self.set_status("Canceled recovery reset");
-                    }
-                } else if ui.button("Arm Reset").clicked() {
+                } else if toolbar_button(ui, "⚡ Arm Reset", false).clicked() {
                     self.pending_reset_to = Some(entry.to_id.clone());
                     self.set_status("Reset armed. Click confirm to execute");
                 }
             }
         } else {
-            ui.label("Select an entry to arm a recovery reset.");
+            ui.label(
+                RichText::new("Select an entry above to arm a recovery reset.")
+                    .size(12.0)
+                    .color(Color32::from_rgb(140, 140, 145)),
+            );
         }
     }
 
@@ -1746,14 +2199,14 @@ impl GitControlApp {
                     ui.add_space(8.0);
                     if self.status_is_error {
                         ui.label(
-                            RichText::new(&self.status_line)
+                            RichText::new(format!("✗  {}", self.status_line))
                                 .color(Color32::from_rgb(180, 40, 40))
                                 .size(12.0),
                         );
                     } else {
                         ui.label(
-                            RichText::new(&self.status_line)
-                                .color(Color32::from_rgb(100, 100, 100))
+                            RichText::new(format!("✓  {}", self.status_line))
+                                .color(Color32::from_rgb(80, 100, 80))
                                 .size(12.0),
                         );
                     }
@@ -2241,6 +2694,66 @@ fn conflict_detail_ui(
                 );
             });
     }
+}
+
+fn section_header(ui: &mut Ui, title: &str, count: usize, accent: Color32) {
+    ui.add_space(6.0);
+    egui::Frame::none()
+        .fill(accent.gamma_multiply(0.12))
+        .rounding(egui::Rounding::same(6.0))
+        .inner_margin(egui::Margin::symmetric(10.0, 5.0))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(title)
+                        .strong()
+                        .size(11.0)
+                        .color(accent.gamma_multiply(0.75)),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    egui::Frame::none()
+                        .fill(accent.gamma_multiply(0.22))
+                        .rounding(egui::Rounding::same(10.0))
+                        .inner_margin(egui::Margin::symmetric(7.0, 2.0))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new(count.to_string())
+                                    .strong()
+                                    .size(10.0)
+                                    .color(accent.gamma_multiply(0.75)),
+                            );
+                        });
+                });
+            });
+        });
+    ui.add_space(2.0);
+}
+
+fn sync_state_card(ui: &mut Ui, label: &str, value: &str, bg: Color32, fg: Color32) {
+    egui::Frame::none()
+        .fill(bg)
+        .rounding(egui::Rounding::same(10.0))
+        .inner_margin(egui::Margin::symmetric(14.0, 10.0))
+        .stroke(egui::Stroke::new(1.0, fg.gamma_multiply(0.35)))
+        .show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new(label)
+                        .size(10.0)
+                        .color(fg.gamma_multiply(0.8)),
+                );
+                ui.label(
+                    RichText::new(value)
+                        .strong()
+                        .size(15.0)
+                        .color(fg),
+                );
+            });
+        });
+}
+
+fn format_conflict_count(count: usize) -> String {
+    format!("⚠ {} conflict{}", count, if count == 1 { "" } else { "s" })
 }
 
 fn yes_no(flag: bool) -> &'static str {
